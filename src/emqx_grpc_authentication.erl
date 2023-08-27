@@ -1,20 +1,12 @@
 -module(emqx_grpc_authentication).
 
-%% for #message{} record
-%% no need for this include if we call emqx_message:to_map/1 to convert it to a map
+
+-behaviour(supervisor).
+-behaviour(application).
+
 -include_lib("emqx/include/emqx.hrl").
 -include_lib("emqx/include/emqx_hooks.hrl").
-
-%% gRPC related imports
-%%-include_lib("gpb/include/gpb.hrl").
-%%-include_lib("grpc/include/grpc.hrl").
-%% gRPC generated file
-%%-include("authentication_pb.hrl").
-
-%% for logging
 -include_lib("emqx/include/logger.hrl").
-
-
 
 -export([ load/1
         , unload/0
@@ -48,12 +40,74 @@
         , on_message_dropped/4
         ]).
 
+%% -----
+%% gRPC
+%% -----
+-export([init/1]).
+-export([start_services/0, start_client_channel/0,
+  stop_services/0, stop_client_channel/0]).
+
+%% -------
+%% defines
+%% -------
+
+-define(SERVER_NAME, authentication).
+-define(CHANN_NAME,  channel1).
+
+%% ----------------
+%% Custom functions
+%% ----------------
+start_services() ->
+  Services = #{protos => [grpc_auth_authentication_pb],
+    services => #{'auth_authentication.AuthenticationService' => emqx_grpc_authentication_svr}
+  },
+  Options = [],
+  {ok, _} = grpc:start_server(?SERVER_NAME, 5076, Services, Options),
+  io:format("Start service ~s on 5076 successfully!~n", [?SERVER_NAME]).
+
+start_client_channel() ->
+  ClientOps = #{},
+  SvrAddr = "http://192.168.111.242:5076",
+  {ok, _} = grpc_client_sup:create_channel_pool(
+    ?CHANN_NAME,
+    SvrAddr,
+    ClientOps
+  ),
+  io:format("Start client channel ~s for ~s successfully! :)~n~n"
+  "Call the 'auth_authentication_authentication_service_client' module exported functions "
+  "to use it. e.g:~n",
+    [?CHANN_NAME, SvrAddr]).
+
+stop_services() ->
+  grpc:stop_server(?SERVER_NAME).
+
+stop_client_channel() ->
+  io:format("client Channel close! :("),
+  grpc_client_sup:stop_channel_pool(?CHANN_NAME).
+
+%%--------------------------------------------------------------------
+%% callbacks for supervisor
+
+init([]) ->
+  SupFlags = #{strategy => one_for_all,
+    intensity => 0,
+    period => 1},
+  ChildSpecs = [],
+  {ok, {SupFlags, ChildSpecs}}.
+
+
+%% ---------------------
+%% plugins functionality
+%% ---------------------
+
 %% Called when the plugin application start
 load(Env) ->
 %%    hook('client.connect',      {?MODULE, on_client_connect, [Env]}),
 %%    hook('client.connack',      {?MODULE, on_client_connack, [Env]}),
 %%    hook('client.connected',    {?MODULE, on_client_connected, [Env]}),
 %%    hook('client.disconnected', {?MODULE, on_client_disconnected, [Env]}),
+    stop_client_channel(), %% Close be fore starting new one since the old one might not closed due to some problems
+    start_client_channel(),
     hook('client.authenticate', {?MODULE, on_client_authenticate, [Env]}).
 %%    hook('client.authorize',    {?MODULE, on_client_authorize, [Env]}),
 %%    hook('client.subscribe',    {?MODULE, on_client_subscribe, [Env]}),
@@ -100,23 +154,33 @@ on_client_disconnected(ClientInfo = #{clientid := ClientId}, ReasonCode, ConnInf
   io:format("Client(~s) disconnected due to ~p, ClientInfo:~n~p~n, ConnInfo:~n~p~n",
               [ClientId, ReasonCode, ClientInfo, ConnInfo]).
 
-on_client_authenticate(ClientInfo = #{clientid := ClientId}, Result, Env) ->
-  io:format("Client(~s) authenticate, ClientInfo:~n~p~n, Result:~p,~nEnv:~p~n",
-    [ClientId, ClientInfo, Result, Env]),
+%% Username is the token JWT token that user has been already fetched from third party server
+on_client_authenticate(ClientInfo = #{clientid := ClientId, username := Username}, Result, Env) ->
+  %% Fetch third party server access token
+  Response = auth_authentication_authentication_service_client:decrypt(#{access_token => Username}, #{channel => channel1}),
+  Success = grpc_checker:is_grpc_call_successful(Response),
+  io:format("gRPC call successful: ~p~n", [Success]),
 
-  Request = #{
-  access_token => ClientId
-  },
-  Method = "AuthenticationService.Decrypt",
-%%  Reply = rpc::decrypt(ClientId),
-%%  io:format("Response received: ~p~n", [Reply]).
-
-
-
-    %%  {stop, {error, banned}}. %% In case of authorization
-    {ok, Result}.
-
-
+  %% Continue if RPC call is successfully
+  case Success of
+    true ->
+      {_, Token, _} = Response,
+      ExpTimestamp = maps:get(exp, Token),
+      {_, CurrentTimestampSeconds, _} = os:timestamp(),
+      %% Check if given token is still valid
+      case ExpTimestamp > CurrentTimestampSeconds of
+        true ->
+          io:format("Client(~s) token exp is bigger than the current date, authenticated~n",
+            [ClientId]),
+          {ok, Result};
+        false ->
+          io:format("Client(~s) token exp is smaller than than the current date, access deniyed!~n",
+            [ClientId]),
+          {stop, {error, banned}}
+      end;
+    false ->
+      io:format("Error: ~p~n", [Response])
+  end.
 
 on_client_authorize(ClientInfo = #{clientid := ClientId}, PubSub, Topic, Result, Env) ->
   io:format("Client(~s) authorize, ClientInfo:~n~p~n, ~p to topic(~s) Result:~p,~nEnv:~p~n",
@@ -187,6 +251,7 @@ on_message_acked(_ClientInfo = #{clientid := ClientId}, Message, _Env) ->
 
 %% Called when the plugin application stop
 unload() ->
+  stop_client_channel(),
 %%    unhook('client.connect',      {?MODULE, on_client_connect}),
 %%    unhook('client.connack',      {?MODULE, on_client_connack}),
 %%    unhook('client.connected',    {?MODULE, on_client_connected}),
