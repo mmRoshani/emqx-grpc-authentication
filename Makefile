@@ -47,3 +47,7 @@ distclean:
 .PHONY: rel
 rel: $(REBAR)
 	$(REBAR) emqx_plugrel tar
+
+.PHONY: proto-gen
+proto-gen: $(REBAR)
+	$(REBAR) grpc gen

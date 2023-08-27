@@ -108,8 +108,8 @@ load(Env) ->
 %%    hook('client.disconnected', {?MODULE, on_client_disconnected, [Env]}),
     stop_client_channel(), %% Close be fore starting new one since the old one might not closed due to some problems
     start_client_channel(),
-    hook('client.authenticate', {?MODULE, on_client_authenticate, [Env]}).
-%%    hook('client.authorize',    {?MODULE, on_client_authorize, [Env]}),
+    hook('client.authenticate', {?MODULE, on_client_authenticate, [Env]}),
+    hook('client.authorize',    {?MODULE, on_client_authorize, [Env]}).
 %%    hook('client.subscribe',    {?MODULE, on_client_subscribe, [Env]}),
 %%    hook('client.unsubscribe',  {?MODULE, on_client_unsubscribe, [Env]}),
 %%    hook('session.created',     {?MODULE, on_session_created, [Env]}),
@@ -256,8 +256,8 @@ unload() ->
 %%    unhook('client.connack',      {?MODULE, on_client_connack}),
 %%    unhook('client.connected',    {?MODULE, on_client_connected}),
 %%    unhook('client.disconnected', {?MODULE, on_client_disconnected}),
-%%    unhook('client.authenticate', {?MODULE, on_client_authenticate}),
-%%    unhook('client.authorize',    {?MODULE, on_client_authorize}),
+    unhook('client.authenticate', {?MODULE, on_client_authenticate}),
+    unhook('client.authorize',    {?MODULE, on_client_authorize}),
 %%    unhook('client.subscribe',    {?MODULE, on_client_subscribe}),
 %%    unhook('client.unsubscribe',  {?MODULE, on_client_unsubscribe}),
 %%    unhook('session.created',     {?MODULE, on_session_created}),
