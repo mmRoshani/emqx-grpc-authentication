@@ -9,6 +9,7 @@
         ]).
 
 start(_StartType, _StartArgs) ->
+    %%  EMQX stuff
     {ok, Sup} = emqx_grpc_authentication_sup:start_link(),
   emqx_grpc_authentication:load(application:get_all_env()),
 

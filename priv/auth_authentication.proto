@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package auth_authentication;
+
+service AuthenticationService {
+  rpc Token(AuthRequest) returns (AuthResponse) {};
+
+  rpc Logout(AccessToken) returns (Void) {};
+  rpc Decrypt(AccessToken) returns (AuthToken) {};
+
+  rpc Mqtt(AccessToken) returns (MqttAuthResult) {};
+
+  rpc PasswordOtp(AccessToken) returns (Code) {}
+  rpc PasswordChange(NewPasswordRequest) returns (Void) {}
+}
+
+message Void { string result = 1; }
+
+message AccessToken { string access_token = 1; }
+
+message MqttAuthResult { string result = 1; }
+
+message AuthRequest {
+  optional string grant_type = 1;
+  optional string app_id = 2;
+  repeated string subjects = 3;
+  optional string client_id = 4;
+  optional string client_secret = 5;
+  optional string phone = 6;
+  optional string email = 7;
+  optional string username = 8;
+  optional string password = 9;
+  optional string confirmation_code = 10;
+  optional string refresh_token = 11;
+  repeated string scopes = 12;
+  optional string code = 13;
+}
+
+message AuthResponse {
+  optional string access_token = 1;
+  optional string refresh_token = 2;
+  optional string token_type = 3;
+  optional string code = 4;
+  optional string expires_in = 5;
+  optional string session = 6;
+  repeated string scopes = 7;
+  repeated string subjects = 8;
+  optional string uid = 9;
+}
+
+message AuthToken {
+  string cid = 1;
+  optional string aid = 2;
+  optional string uid = 3;
+  string subjects = 4;
+  string scopes = 5;
+  string session = 6;
+  string client_id = 7;
+
+  optional int64 iat = 9;
+  optional int64 exp = 10;
+}
+
+
+message Code {
+  string code = 1;
+}
+
+message NewPasswordRequest{
+  string confirmation_code = 1;
+  string code = 2;
+  string new_password = 3;
+}

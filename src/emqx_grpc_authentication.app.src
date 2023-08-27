@@ -3,7 +3,7 @@
   {vsn, "0.0.1"},
   {modules, []},
   {registered, [emqx_grpc_authentication_sup]},
-  {applications, [kernel, stdlib, map_sets]},
+  {applications, [kernel, stdlib, map_sets,grpc]},
   {mod, {emqx_grpc_authentication_app, []}},
   {env, []},
   {maintainers, ["MohammadMojtabaRoshani"]},
