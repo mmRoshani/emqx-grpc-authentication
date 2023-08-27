@@ -1,11 +1,15 @@
-{{=@@ @@=}}
--module(@@name@@).
+-module(emqx_grpc_authentication).
 
 %% for #message{} record
 %% no need for this include if we call emqx_message:to_map/1 to convert it to a map
 -include_lib("emqx/include/emqx.hrl").
 -include_lib("emqx/include/emqx_hooks.hrl").
 
+%% gRPC related imports
+%%-include_lib("gpb/include/gpb.hrl").
+%%-include_lib("grpc/include/grpc.hrl").
+%% gRPC generated file
+%%-include("authentication_pb.hrl").
 
 %% for logging
 -include_lib("emqx/include/logger.hrl").
@@ -97,12 +101,16 @@ on_client_disconnected(ClientInfo = #{clientid := ClientId}, ReasonCode, ConnInf
 on_client_authenticate(ClientInfo = #{clientid := ClientId}, Result, Env) ->
   io:format("Client(~s) authenticate, ClientInfo:~n~p~n, Result:~p,~nEnv:~p~n",
     [ClientId, ClientInfo, Result, Env]),
-  {ok, Result}.
+%%  {stop, {error, banned}}. %% In case of authorization
+    {ok, Result}.
+
+
 
 on_client_authorize(ClientInfo = #{clientid := ClientId}, PubSub, Topic, Result, Env) ->
   io:format("Client(~s) authorize, ClientInfo:~n~p~n, ~p to topic(~s) Result:~p,~nEnv:~p~n",
     [ClientId, ClientInfo, PubSub, Topic, Result, Env]),
   {ok, Result}.
+
 
 on_client_subscribe(#{clientid := ClientId}, _Properties, TopicFilters, _Env) ->
     io:format("Client(~s) will subscribe: ~p~n", [ClientId, TopicFilters]),

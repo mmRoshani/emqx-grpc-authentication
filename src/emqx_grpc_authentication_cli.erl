@@ -1,5 +1,4 @@
-{{=@@ @@=}}
--module(@@name@@_cli).
+-module(emqx_grpc_authentication_cli).
 
 %% This is an example on how to extend `emqx ctl` with your own commands.
 

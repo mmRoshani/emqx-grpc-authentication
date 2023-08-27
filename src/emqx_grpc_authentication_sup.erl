@@ -1,5 +1,4 @@
-{{=@@ @@=}}
--module(@@name@@_sup).
+-module(emqx_grpc_authentication_sup).
 
 -behaviour(supervisor).
 
