@@ -23,23 +23,23 @@
           marshal => ?MARSHAL(Req),
           unmarshal => ?UNMARSHAL(Resp)}).
 
--spec decrypt(grpc_auth_authentication_pb:access_token())
+-spec mqtt_authenticate_cache_valid_topics(grpc_auth_authentication_pb:mqtt_authentication())
     -> {ok, grpc_auth_authentication_pb:auth_token(), grpc:metadata()}
      | {error, term()}.
-decrypt(Req) ->
-    decrypt(Req, #{}, #{}).
+mqtt_authenticate_cache_valid_topics(Req) ->
+    mqtt_authenticate_cache_valid_topics(Req, #{}, #{}).
 
--spec decrypt(grpc_auth_authentication_pb:access_token(), grpc:options())
+-spec mqtt_authenticate_cache_valid_topics(grpc_auth_authentication_pb:mqtt_authentication(), grpc:options())
     -> {ok, grpc_auth_authentication_pb:auth_token(), grpc:metadata()}
      | {error, term()}.
-decrypt(Req, Options) ->
-    decrypt(Req, #{}, Options).
+mqtt_authenticate_cache_valid_topics(Req, Options) ->
+    mqtt_authenticate_cache_valid_topics(Req, #{}, Options).
 
--spec decrypt(grpc_auth_authentication_pb:access_token(), grpc:metadata(), grpc_client:options())
+-spec mqtt_authenticate_cache_valid_topics(grpc_auth_authentication_pb:mqtt_authentication(), grpc:metadata(), grpc_client:options())
     -> {ok, grpc_auth_authentication_pb:auth_token(), grpc:metadata()}
      | {error, term()}.
-decrypt(Req, Metadata, Options) ->
-    grpc_client:unary(?DEF(<<"/auth_authentication.AuthenticationService/Decrypt">>,
-                           access_token, auth_token, <<"auth_authentication.AccessToken">>),
+mqtt_authenticate_cache_valid_topics(Req, Metadata, Options) ->
+    grpc_client:unary(?DEF(<<"/auth_authentication.AuthenticationService/MqttAuthenticateCacheValidTopics">>,
+                           mqtt_authentication, auth_token, <<"auth_authentication.MqttAuthentication">>),
                       Req, Metadata, Options).
 

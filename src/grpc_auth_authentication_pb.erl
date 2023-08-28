@@ -50,8 +50,10 @@
 -export_type([]).
 
 %% message types
--type access_token() ::
-      #{access_token            => iodata()         % = 1
+-type mqtt_authentication() ::
+      #{access_token            => iodata(),        % = 1
+        active_session          => iodata(),        % = 2
+        mqtt_client_id          => iodata()         % = 3
        }.
 
 -type auth_token() ::
@@ -66,13 +68,13 @@
         exp                     => integer()        % = 10, 64 bits
        }.
 
--export_type(['access_token'/0, 'auth_token'/0]).
+-export_type(['mqtt_authentication'/0, 'auth_token'/0]).
 
--spec encode_msg(access_token() | auth_token(), atom()) -> binary().
+-spec encode_msg(mqtt_authentication() | auth_token(), atom()) -> binary().
 encode_msg(Msg, MsgName) when is_atom(MsgName) ->
     encode_msg(Msg, MsgName, []).
 
--spec encode_msg(access_token() | auth_token(), atom(), list()) -> binary().
+-spec encode_msg(mqtt_authentication() | auth_token(), atom(), list()) -> binary().
 encode_msg(Msg, MsgName, Opts) ->
     case proplists:get_bool(verify, Opts) of
         true -> verify_msg(Msg, MsgName, Opts);
@@ -80,30 +82,55 @@ encode_msg(Msg, MsgName, Opts) ->
     end,
     TrUserData = proplists:get_value(user_data, Opts),
     case MsgName of
-        access_token ->
-            encode_msg_access_token(id(Msg, TrUserData),
-                                    TrUserData);
+        mqtt_authentication ->
+            encode_msg_mqtt_authentication(id(Msg, TrUserData),
+                                           TrUserData);
         auth_token ->
             encode_msg_auth_token(id(Msg, TrUserData), TrUserData)
     end.
 
 
-encode_msg_access_token(Msg, TrUserData) ->
-    encode_msg_access_token(Msg, <<>>, TrUserData).
+encode_msg_mqtt_authentication(Msg, TrUserData) ->
+    encode_msg_mqtt_authentication(Msg, <<>>, TrUserData).
 
 
-encode_msg_access_token(#{} = M, Bin, TrUserData) ->
+encode_msg_mqtt_authentication(#{} = M, Bin,
+                               TrUserData) ->
+    B1 = case M of
+             #{access_token := F1} ->
+                 begin
+                     TrF1 = id(F1, TrUserData),
+                     case is_empty_string(TrF1) of
+                         true -> Bin;
+                         false ->
+                             e_type_string(TrF1, <<Bin/binary, 10>>, TrUserData)
+                     end
+                 end;
+             _ -> Bin
+         end,
+    B2 = case M of
+             #{active_session := F2} ->
+                 begin
+                     TrF2 = id(F2, TrUserData),
+                     case is_empty_string(TrF2) of
+                         true -> B1;
+                         false ->
+                             e_type_string(TrF2, <<B1/binary, 18>>, TrUserData)
+                     end
+                 end;
+             _ -> B1
+         end,
     case M of
-        #{access_token := F1} ->
+        #{mqtt_client_id := F3} ->
             begin
-                TrF1 = id(F1, TrUserData),
-                case is_empty_string(TrF1) of
-                    true -> Bin;
+                TrF3 = id(F3, TrUserData),
+                case is_empty_string(TrF3) of
+                    true -> B2;
                     false ->
-                        e_type_string(TrF1, <<Bin/binary, 10>>, TrUserData)
+                        e_type_string(TrF3, <<B2/binary, 26>>, TrUserData)
                 end
             end;
-        _ -> Bin
+        _ -> B2
     end.
 
 encode_msg_auth_token(Msg, TrUserData) ->
@@ -351,163 +378,314 @@ decode_msg_1_catch(Bin, MsgName, TrUserData) ->
     end.
 -endif.
 
-decode_msg_2_doit(access_token, Bin, TrUserData) ->
-    id(decode_msg_access_token(Bin, TrUserData),
+decode_msg_2_doit(mqtt_authentication, Bin,
+                  TrUserData) ->
+    id(decode_msg_mqtt_authentication(Bin, TrUserData),
        TrUserData);
 decode_msg_2_doit(auth_token, Bin, TrUserData) ->
     id(decode_msg_auth_token(Bin, TrUserData), TrUserData).
 
 
 
-decode_msg_access_token(Bin, TrUserData) ->
-    dfp_read_field_def_access_token(Bin,
-                                    0,
-                                    0,
-                                    id(<<>>, TrUserData),
-                                    TrUserData).
+decode_msg_mqtt_authentication(Bin, TrUserData) ->
+    dfp_read_field_def_mqtt_authentication(Bin,
+                                           0,
+                                           0,
+                                           id(<<>>, TrUserData),
+                                           id(<<>>, TrUserData),
+                                           id(<<>>, TrUserData),
+                                           TrUserData).
 
-dfp_read_field_def_access_token(<<10, Rest/binary>>, Z1,
-                                Z2, F@_1, TrUserData) ->
-    d_field_access_token_access_token(Rest,
-                                      Z1,
-                                      Z2,
-                                      F@_1,
-                                      TrUserData);
-dfp_read_field_def_access_token(<<>>, 0, 0, F@_1, _) ->
-    #{access_token => F@_1};
-dfp_read_field_def_access_token(Other, Z1, Z2, F@_1,
-                                TrUserData) ->
-    dg_read_field_def_access_token(Other,
-                                   Z1,
-                                   Z2,
-                                   F@_1,
-                                   TrUserData).
+dfp_read_field_def_mqtt_authentication(<<10,
+                                         Rest/binary>>,
+                                       Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    d_field_mqtt_authentication_access_token(Rest,
+                                             Z1,
+                                             Z2,
+                                             F@_1,
+                                             F@_2,
+                                             F@_3,
+                                             TrUserData);
+dfp_read_field_def_mqtt_authentication(<<18,
+                                         Rest/binary>>,
+                                       Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    d_field_mqtt_authentication_active_session(Rest,
+                                               Z1,
+                                               Z2,
+                                               F@_1,
+                                               F@_2,
+                                               F@_3,
+                                               TrUserData);
+dfp_read_field_def_mqtt_authentication(<<26,
+                                         Rest/binary>>,
+                                       Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    d_field_mqtt_authentication_mqtt_client_id(Rest,
+                                               Z1,
+                                               Z2,
+                                               F@_1,
+                                               F@_2,
+                                               F@_3,
+                                               TrUserData);
+dfp_read_field_def_mqtt_authentication(<<>>, 0, 0, F@_1,
+                                       F@_2, F@_3, _) ->
+    #{access_token => F@_1, active_session => F@_2,
+      mqtt_client_id => F@_3};
+dfp_read_field_def_mqtt_authentication(Other, Z1, Z2,
+                                       F@_1, F@_2, F@_3, TrUserData) ->
+    dg_read_field_def_mqtt_authentication(Other,
+                                          Z1,
+                                          Z2,
+                                          F@_1,
+                                          F@_2,
+                                          F@_3,
+                                          TrUserData).
 
-dg_read_field_def_access_token(<<1:1, X:7,
-                                 Rest/binary>>,
-                               N, Acc, F@_1, TrUserData)
+dg_read_field_def_mqtt_authentication(<<1:1, X:7,
+                                        Rest/binary>>,
+                                      N, Acc, F@_1, F@_2, F@_3, TrUserData)
     when N < 32 - 7 ->
-    dg_read_field_def_access_token(Rest,
-                                   N + 7,
-                                   X bsl N + Acc,
-                                   F@_1,
-                                   TrUserData);
-dg_read_field_def_access_token(<<0:1, X:7,
-                                 Rest/binary>>,
-                               N, Acc, F@_1, TrUserData) ->
+    dg_read_field_def_mqtt_authentication(Rest,
+                                          N + 7,
+                                          X bsl N + Acc,
+                                          F@_1,
+                                          F@_2,
+                                          F@_3,
+                                          TrUserData);
+dg_read_field_def_mqtt_authentication(<<0:1, X:7,
+                                        Rest/binary>>,
+                                      N, Acc, F@_1, F@_2, F@_3, TrUserData) ->
     Key = X bsl N + Acc,
     case Key of
         10 ->
-            d_field_access_token_access_token(Rest,
-                                              0,
-                                              0,
-                                              F@_1,
-                                              TrUserData);
-        _ ->
-            case Key band 7 of
-                0 ->
-                    skip_varint_access_token(Rest, 0, 0, F@_1, TrUserData);
-                1 -> skip_64_access_token(Rest, 0, 0, F@_1, TrUserData);
-                2 ->
-                    skip_length_delimited_access_token(Rest,
+            d_field_mqtt_authentication_access_token(Rest,
+                                                     0,
+                                                     0,
+                                                     F@_1,
+                                                     F@_2,
+                                                     F@_3,
+                                                     TrUserData);
+        18 ->
+            d_field_mqtt_authentication_active_session(Rest,
                                                        0,
                                                        0,
                                                        F@_1,
+                                                       F@_2,
+                                                       F@_3,
                                                        TrUserData);
+        26 ->
+            d_field_mqtt_authentication_mqtt_client_id(Rest,
+                                                       0,
+                                                       0,
+                                                       F@_1,
+                                                       F@_2,
+                                                       F@_3,
+                                                       TrUserData);
+        _ ->
+            case Key band 7 of
+                0 ->
+                    skip_varint_mqtt_authentication(Rest,
+                                                    0,
+                                                    0,
+                                                    F@_1,
+                                                    F@_2,
+                                                    F@_3,
+                                                    TrUserData);
+                1 ->
+                    skip_64_mqtt_authentication(Rest,
+                                                0,
+                                                0,
+                                                F@_1,
+                                                F@_2,
+                                                F@_3,
+                                                TrUserData);
+                2 ->
+                    skip_length_delimited_mqtt_authentication(Rest,
+                                                              0,
+                                                              0,
+                                                              F@_1,
+                                                              F@_2,
+                                                              F@_3,
+                                                              TrUserData);
                 3 ->
-                    skip_group_access_token(Rest,
-                                            Key bsr 3,
-                                            0,
-                                            F@_1,
-                                            TrUserData);
-                5 -> skip_32_access_token(Rest, 0, 0, F@_1, TrUserData)
+                    skip_group_mqtt_authentication(Rest,
+                                                   Key bsr 3,
+                                                   0,
+                                                   F@_1,
+                                                   F@_2,
+                                                   F@_3,
+                                                   TrUserData);
+                5 ->
+                    skip_32_mqtt_authentication(Rest,
+                                                0,
+                                                0,
+                                                F@_1,
+                                                F@_2,
+                                                F@_3,
+                                                TrUserData)
             end
     end;
-dg_read_field_def_access_token(<<>>, 0, 0, F@_1, _) ->
-    #{access_token => F@_1}.
+dg_read_field_def_mqtt_authentication(<<>>, 0, 0, F@_1,
+                                      F@_2, F@_3, _) ->
+    #{access_token => F@_1, active_session => F@_2,
+      mqtt_client_id => F@_3}.
 
-d_field_access_token_access_token(<<1:1, X:7,
-                                    Rest/binary>>,
-                                  N, Acc, F@_1, TrUserData)
+d_field_mqtt_authentication_access_token(<<1:1, X:7,
+                                           Rest/binary>>,
+                                         N, Acc, F@_1, F@_2, F@_3, TrUserData)
     when N < 57 ->
-    d_field_access_token_access_token(Rest,
-                                      N + 7,
-                                      X bsl N + Acc,
-                                      F@_1,
-                                      TrUserData);
-d_field_access_token_access_token(<<0:1, X:7,
-                                    Rest/binary>>,
-                                  N, Acc, _, TrUserData) ->
+    d_field_mqtt_authentication_access_token(Rest,
+                                             N + 7,
+                                             X bsl N + Acc,
+                                             F@_1,
+                                             F@_2,
+                                             F@_3,
+                                             TrUserData);
+d_field_mqtt_authentication_access_token(<<0:1, X:7,
+                                           Rest/binary>>,
+                                         N, Acc, _, F@_2, F@_3, TrUserData) ->
     {NewFValue, RestF} = begin
                              Len = X bsl N + Acc,
                              <<Bytes:Len/binary, Rest2/binary>> = Rest,
                              {id(binary:copy(Bytes), TrUserData), Rest2}
                          end,
-    dfp_read_field_def_access_token(RestF,
-                                    0,
-                                    0,
-                                    NewFValue,
-                                    TrUserData).
+    dfp_read_field_def_mqtt_authentication(RestF,
+                                           0,
+                                           0,
+                                           NewFValue,
+                                           F@_2,
+                                           F@_3,
+                                           TrUserData).
 
-skip_varint_access_token(<<1:1, _:7, Rest/binary>>, Z1,
-                         Z2, F@_1, TrUserData) ->
-    skip_varint_access_token(Rest,
-                             Z1,
-                             Z2,
-                             F@_1,
-                             TrUserData);
-skip_varint_access_token(<<0:1, _:7, Rest/binary>>, Z1,
-                         Z2, F@_1, TrUserData) ->
-    dfp_read_field_def_access_token(Rest,
+d_field_mqtt_authentication_active_session(<<1:1, X:7,
+                                             Rest/binary>>,
+                                           N, Acc, F@_1, F@_2, F@_3, TrUserData)
+    when N < 57 ->
+    d_field_mqtt_authentication_active_session(Rest,
+                                               N + 7,
+                                               X bsl N + Acc,
+                                               F@_1,
+                                               F@_2,
+                                               F@_3,
+                                               TrUserData);
+d_field_mqtt_authentication_active_session(<<0:1, X:7,
+                                             Rest/binary>>,
+                                           N, Acc, F@_1, _, F@_3, TrUserData) ->
+    {NewFValue, RestF} = begin
+                             Len = X bsl N + Acc,
+                             <<Bytes:Len/binary, Rest2/binary>> = Rest,
+                             {id(binary:copy(Bytes), TrUserData), Rest2}
+                         end,
+    dfp_read_field_def_mqtt_authentication(RestF,
+                                           0,
+                                           0,
+                                           F@_1,
+                                           NewFValue,
+                                           F@_3,
+                                           TrUserData).
+
+d_field_mqtt_authentication_mqtt_client_id(<<1:1, X:7,
+                                             Rest/binary>>,
+                                           N, Acc, F@_1, F@_2, F@_3, TrUserData)
+    when N < 57 ->
+    d_field_mqtt_authentication_mqtt_client_id(Rest,
+                                               N + 7,
+                                               X bsl N + Acc,
+                                               F@_1,
+                                               F@_2,
+                                               F@_3,
+                                               TrUserData);
+d_field_mqtt_authentication_mqtt_client_id(<<0:1, X:7,
+                                             Rest/binary>>,
+                                           N, Acc, F@_1, F@_2, _, TrUserData) ->
+    {NewFValue, RestF} = begin
+                             Len = X bsl N + Acc,
+                             <<Bytes:Len/binary, Rest2/binary>> = Rest,
+                             {id(binary:copy(Bytes), TrUserData), Rest2}
+                         end,
+    dfp_read_field_def_mqtt_authentication(RestF,
+                                           0,
+                                           0,
+                                           F@_1,
+                                           F@_2,
+                                           NewFValue,
+                                           TrUserData).
+
+skip_varint_mqtt_authentication(<<1:1, _:7,
+                                  Rest/binary>>,
+                                Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    skip_varint_mqtt_authentication(Rest,
                                     Z1,
                                     Z2,
                                     F@_1,
-                                    TrUserData).
+                                    F@_2,
+                                    F@_3,
+                                    TrUserData);
+skip_varint_mqtt_authentication(<<0:1, _:7,
+                                  Rest/binary>>,
+                                Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    dfp_read_field_def_mqtt_authentication(Rest,
+                                           Z1,
+                                           Z2,
+                                           F@_1,
+                                           F@_2,
+                                           F@_3,
+                                           TrUserData).
 
-skip_length_delimited_access_token(<<1:1, X:7,
-                                     Rest/binary>>,
-                                   N, Acc, F@_1, TrUserData)
+skip_length_delimited_mqtt_authentication(<<1:1, X:7,
+                                            Rest/binary>>,
+                                          N, Acc, F@_1, F@_2, F@_3, TrUserData)
     when N < 57 ->
-    skip_length_delimited_access_token(Rest,
-                                       N + 7,
-                                       X bsl N + Acc,
-                                       F@_1,
-                                       TrUserData);
-skip_length_delimited_access_token(<<0:1, X:7,
-                                     Rest/binary>>,
-                                   N, Acc, F@_1, TrUserData) ->
+    skip_length_delimited_mqtt_authentication(Rest,
+                                              N + 7,
+                                              X bsl N + Acc,
+                                              F@_1,
+                                              F@_2,
+                                              F@_3,
+                                              TrUserData);
+skip_length_delimited_mqtt_authentication(<<0:1, X:7,
+                                            Rest/binary>>,
+                                          N, Acc, F@_1, F@_2, F@_3,
+                                          TrUserData) ->
     Length = X bsl N + Acc,
     <<_:Length/binary, Rest2/binary>> = Rest,
-    dfp_read_field_def_access_token(Rest2,
-                                    0,
-                                    0,
-                                    F@_1,
-                                    TrUserData).
+    dfp_read_field_def_mqtt_authentication(Rest2,
+                                           0,
+                                           0,
+                                           F@_1,
+                                           F@_2,
+                                           F@_3,
+                                           TrUserData).
 
-skip_group_access_token(Bin, FNum, Z2, F@_1,
-                        TrUserData) ->
+skip_group_mqtt_authentication(Bin, FNum, Z2, F@_1,
+                               F@_2, F@_3, TrUserData) ->
     {_, Rest} = read_group(Bin, FNum),
-    dfp_read_field_def_access_token(Rest,
-                                    0,
-                                    Z2,
-                                    F@_1,
-                                    TrUserData).
+    dfp_read_field_def_mqtt_authentication(Rest,
+                                           0,
+                                           Z2,
+                                           F@_1,
+                                           F@_2,
+                                           F@_3,
+                                           TrUserData).
 
-skip_32_access_token(<<_:32, Rest/binary>>, Z1, Z2,
-                     F@_1, TrUserData) ->
-    dfp_read_field_def_access_token(Rest,
-                                    Z1,
-                                    Z2,
-                                    F@_1,
-                                    TrUserData).
+skip_32_mqtt_authentication(<<_:32, Rest/binary>>, Z1,
+                            Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    dfp_read_field_def_mqtt_authentication(Rest,
+                                           Z1,
+                                           Z2,
+                                           F@_1,
+                                           F@_2,
+                                           F@_3,
+                                           TrUserData).
 
-skip_64_access_token(<<_:64, Rest/binary>>, Z1, Z2,
-                     F@_1, TrUserData) ->
-    dfp_read_field_def_access_token(Rest,
-                                    Z1,
-                                    Z2,
-                                    F@_1,
-                                    TrUserData).
+skip_64_mqtt_authentication(<<_:64, Rest/binary>>, Z1,
+                            Z2, F@_1, F@_2, F@_3, TrUserData) ->
+    dfp_read_field_def_mqtt_authentication(Rest,
+                                           Z1,
+                                           Z2,
+                                           F@_1,
+                                           F@_2,
+                                           F@_3,
+                                           TrUserData).
 
 decode_msg_auth_token(Bin, TrUserData) ->
     dfp_read_field_def_auth_token(Bin,
@@ -1457,21 +1635,35 @@ merge_msgs(Prev, New, MsgName) when is_atom(MsgName) ->
 merge_msgs(Prev, New, MsgName, Opts) ->
     TrUserData = proplists:get_value(user_data, Opts),
     case MsgName of
-        access_token ->
-            merge_msg_access_token(Prev, New, TrUserData);
+        mqtt_authentication ->
+            merge_msg_mqtt_authentication(Prev, New, TrUserData);
         auth_token ->
             merge_msg_auth_token(Prev, New, TrUserData)
     end.
 
--compile({nowarn_unused_function,merge_msg_access_token/3}).
-merge_msg_access_token(PMsg, NMsg, _) ->
+-compile({nowarn_unused_function,merge_msg_mqtt_authentication/3}).
+merge_msg_mqtt_authentication(PMsg, NMsg, _) ->
     S1 = #{},
+    S2 = case {PMsg, NMsg} of
+             {_, #{access_token := NFaccess_token}} ->
+                 S1#{access_token => NFaccess_token};
+             {#{access_token := PFaccess_token}, _} ->
+                 S1#{access_token => PFaccess_token};
+             _ -> S1
+         end,
+    S3 = case {PMsg, NMsg} of
+             {_, #{active_session := NFactive_session}} ->
+                 S2#{active_session => NFactive_session};
+             {#{active_session := PFactive_session}, _} ->
+                 S2#{active_session => PFactive_session};
+             _ -> S2
+         end,
     case {PMsg, NMsg} of
-        {_, #{access_token := NFaccess_token}} ->
-            S1#{access_token => NFaccess_token};
-        {#{access_token := PFaccess_token}, _} ->
-            S1#{access_token => PFaccess_token};
-        _ -> S1
+        {_, #{mqtt_client_id := NFmqtt_client_id}} ->
+            S3#{mqtt_client_id => NFmqtt_client_id};
+        {#{mqtt_client_id := PFmqtt_client_id}, _} ->
+            S3#{mqtt_client_id => PFmqtt_client_id};
+        _ -> S3
     end.
 
 -compile({nowarn_unused_function,merge_msg_auth_token/3}).
@@ -1536,37 +1728,51 @@ verify_msg(Msg, MsgName) when is_atom(MsgName) ->
 verify_msg(Msg, MsgName, Opts) ->
     TrUserData = proplists:get_value(user_data, Opts),
     case MsgName of
-        access_token ->
-            v_msg_access_token(Msg, [MsgName], TrUserData);
+        mqtt_authentication ->
+            v_msg_mqtt_authentication(Msg, [MsgName], TrUserData);
         auth_token ->
             v_msg_auth_token(Msg, [MsgName], TrUserData);
         _ -> mk_type_error(not_a_known_message, Msg, [])
     end.
 
 
--compile({nowarn_unused_function,v_msg_access_token/3}).
--dialyzer({nowarn_function,v_msg_access_token/3}).
-v_msg_access_token(#{} = M, Path, TrUserData) ->
+-compile({nowarn_unused_function,v_msg_mqtt_authentication/3}).
+-dialyzer({nowarn_function,v_msg_mqtt_authentication/3}).
+v_msg_mqtt_authentication(#{} = M, Path, TrUserData) ->
     case M of
         #{access_token := F1} ->
             v_type_string(F1, [access_token | Path], TrUserData);
         _ -> ok
     end,
+    case M of
+        #{active_session := F2} ->
+            v_type_string(F2, [active_session | Path], TrUserData);
+        _ -> ok
+    end,
+    case M of
+        #{mqtt_client_id := F3} ->
+            v_type_string(F3, [mqtt_client_id | Path], TrUserData);
+        _ -> ok
+    end,
     lists:foreach(fun (access_token) -> ok;
+                      (active_session) -> ok;
+                      (mqtt_client_id) -> ok;
                       (OtherKey) ->
                           mk_type_error({extraneous_key, OtherKey}, M, Path)
                   end,
                   maps:keys(M)),
     ok;
-v_msg_access_token(M, Path, _TrUserData)
+v_msg_mqtt_authentication(M, Path, _TrUserData)
     when is_map(M) ->
     mk_type_error({missing_fields,
                    [] -- maps:keys(M),
-                   access_token},
+                   mqtt_authentication},
                   M,
                   Path);
-v_msg_access_token(X, Path, _TrUserData) ->
-    mk_type_error({expected_msg, access_token}, X, Path).
+v_msg_mqtt_authentication(X, Path, _TrUserData) ->
+    mk_type_error({expected_msg, mqtt_authentication},
+                  X,
+                  Path).
 
 -compile({nowarn_unused_function,v_msg_auth_token/3}).
 -dialyzer({nowarn_function,v_msg_auth_token/3}).
@@ -1711,8 +1917,12 @@ cons(Elem, Acc, _TrUserData) -> [Elem | Acc].
 
 
 get_msg_defs() ->
-    [{{msg, access_token},
+    [{{msg, mqtt_authentication},
       [#{name => access_token, fnum => 1, rnum => 2,
+         type => string, occurrence => optional, opts => []},
+       #{name => active_session, fnum => 2, rnum => 3,
+         type => string, occurrence => optional, opts => []},
+       #{name => mqtt_client_id, fnum => 3, rnum => 4,
          type => string, occurrence => optional, opts => []}]},
      {{msg, auth_token},
       [#{name => cid, fnum => 1, rnum => 2, type => string,
@@ -1735,13 +1945,14 @@ get_msg_defs() ->
          occurrence => optional, opts => []}]}].
 
 
-get_msg_names() -> [access_token, auth_token].
+get_msg_names() -> [mqtt_authentication, auth_token].
 
 
 get_group_names() -> [].
 
 
-get_msg_or_group_names() -> [access_token, auth_token].
+get_msg_or_group_names() ->
+    [mqtt_authentication, auth_token].
 
 
 get_enum_names() -> [].
@@ -1759,8 +1970,12 @@ fetch_enum_def(EnumName) ->
     erlang:error({no_such_enum, EnumName}).
 
 
-find_msg_def(access_token) ->
+find_msg_def(mqtt_authentication) ->
     [#{name => access_token, fnum => 1, rnum => 2,
+       type => string, occurrence => optional, opts => []},
+     #{name => active_session, fnum => 2, rnum => 3,
+       type => string, occurrence => optional, opts => []},
+     #{name => mqtt_client_id, fnum => 3, rnum => 4,
        type => string, occurrence => optional, opts => []}];
 find_msg_def(auth_token) ->
     [#{name => cid, fnum => 1, rnum => 2, type => string,
@@ -1804,14 +2019,15 @@ get_service_names() ->
 
 get_service_def('auth_authentication.AuthenticationService') ->
     {{service, 'auth_authentication.AuthenticationService'},
-     [#{name => 'Decrypt', input => access_token,
-        output => auth_token, input_stream => false,
-        output_stream => false, opts => []}]};
+     [#{name => 'MqttAuthenticateCacheValidTopics',
+        input => mqtt_authentication, output => auth_token,
+        input_stream => false, output_stream => false,
+        opts => []}]};
 get_service_def(_) -> error.
 
 
 get_rpc_names('auth_authentication.AuthenticationService') ->
-    ['Decrypt'];
+    ['MqttAuthenticateCacheValidTopics'];
 get_rpc_names(_) -> error.
 
 
@@ -1821,10 +2037,11 @@ find_rpc_def('auth_authentication.AuthenticationService',
 find_rpc_def(_, _) -> error.
 
 
-'find_rpc_def_auth_authentication.AuthenticationService'('Decrypt') ->
-    #{name => 'Decrypt', input => access_token,
-      output => auth_token, input_stream => false,
-      output_stream => false, opts => []};
+'find_rpc_def_auth_authentication.AuthenticationService'('MqttAuthenticateCacheValidTopics') ->
+    #{name => 'MqttAuthenticateCacheValidTopics',
+      input => mqtt_authentication, output => auth_token,
+      input_stream => false, output_stream => false,
+      opts => []};
 'find_rpc_def_auth_authentication.AuthenticationService'(_) ->
     error.
 
@@ -1856,9 +2073,9 @@ service_name_to_fqbin(X) ->
 %% Convert a a fully qualified (ie with package name) service name
 %% and an rpc name, both as binaries to a service name and an rpc
 %% name, as atoms.
-fqbins_to_service_and_rpc_name(<<"auth_authentication.AuthenticationService">>, <<"Decrypt">>) ->
+fqbins_to_service_and_rpc_name(<<"auth_authentication.AuthenticationService">>, <<"MqttAuthenticateCacheValidTopics">>) ->
     {'auth_authentication.AuthenticationService',
-     'Decrypt'};
+     'MqttAuthenticateCacheValidTopics'};
 fqbins_to_service_and_rpc_name(S, R) ->
     error({gpb_error, {badservice_or_rpc, {S, R}}}).
 
@@ -1867,18 +2084,18 @@ fqbins_to_service_and_rpc_name(S, R) ->
 %% to a fully qualified (ie with package name) service name and
 %% an rpc name as binaries.
 service_and_rpc_name_to_fqbins('auth_authentication.AuthenticationService',
-                               'Decrypt') ->
-    {<<"auth_authentication.AuthenticationService">>, <<"Decrypt">>};
+                               'MqttAuthenticateCacheValidTopics') ->
+    {<<"auth_authentication.AuthenticationService">>, <<"MqttAuthenticateCacheValidTopics">>};
 service_and_rpc_name_to_fqbins(S, R) ->
     error({gpb_error, {badservice_or_rpc, {S, R}}}).
 
 
-fqbin_to_msg_name(<<"auth_authentication.AccessToken">>) -> access_token;
+fqbin_to_msg_name(<<"auth_authentication.MqttAuthentication">>) -> mqtt_authentication;
 fqbin_to_msg_name(<<"auth_authentication.AuthToken">>) -> auth_token;
 fqbin_to_msg_name(E) -> error({gpb_error, {badmsg, E}}).
 
 
-msg_name_to_fqbin(access_token) -> <<"auth_authentication.AccessToken">>;
+msg_name_to_fqbin(mqtt_authentication) -> <<"auth_authentication.MqttAuthentication">>;
 msg_name_to_fqbin(auth_token) -> <<"auth_authentication.AuthToken">>;
 msg_name_to_fqbin(E) -> error({gpb_error, {badmsg, E}}).
 
@@ -1922,7 +2139,7 @@ get_all_proto_names() -> ["auth_authentication"].
 
 
 get_msg_containment("auth_authentication") ->
-    [access_token, auth_token];
+    [auth_token, mqtt_authentication];
 get_msg_containment(P) ->
     error({gpb_error, {badproto, P}}).
 
@@ -1941,7 +2158,7 @@ get_service_containment(P) ->
 
 get_rpc_containment("auth_authentication") ->
     [{'auth_authentication.AuthenticationService',
-      'Decrypt'}];
+      'MqttAuthenticateCacheValidTopics'}];
 get_rpc_containment(P) ->
     error({gpb_error, {badproto, P}}).
 
@@ -1951,9 +2168,9 @@ get_enum_containment(P) ->
     error({gpb_error, {badproto, P}}).
 
 
-get_proto_by_msg_name_as_fqbin(<<"auth_authentication.AuthToken">>) ->
+get_proto_by_msg_name_as_fqbin(<<"auth_authentication.MqttAuthentication">>) ->
     "auth_authentication";
-get_proto_by_msg_name_as_fqbin(<<"auth_authentication.AccessToken">>) ->
+get_proto_by_msg_name_as_fqbin(<<"auth_authentication.AuthToken">>) ->
     "auth_authentication";
 get_proto_by_msg_name_as_fqbin(E) ->
     error({gpb_error, {badmsg, E}}).

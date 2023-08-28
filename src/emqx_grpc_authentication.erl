@@ -155,36 +155,39 @@ on_client_disconnected(ClientInfo = #{clientid := ClientId}, ReasonCode, ConnInf
               [ClientId, ReasonCode, ClientInfo, ConnInfo]).
 
 %% Username is the token JWT token that user has been already fetched from third party server
-on_client_authenticate(ClientInfo = #{clientid := ClientId, username := Username}, Result, Env) ->
+on_client_authenticate(ClientInfo = #{clientid := ClientId, username := Username, password := Password}, Result, Env) ->
   %% Fetch third party server access token
-  Response = auth_authentication_authentication_service_client:decrypt(#{access_token => Username}, #{channel => channel1}),
+  Response = auth_authentication_authentication_service_client:mqtt_authenticate_cache_valid_topics(#{
+    access_token => Password,
+    active_session => Username,
+    mqtt_client_id => ClientId},
+    #{channel => channel1
+    }),
   Success = grpc_checker:is_grpc_call_successful(Response),
   io:format("gRPC call successful: ~p~n", [Success]),
 
   %% Continue if RPC call is successfully
   case Success of
     true ->
-      {_, Token, _} = Response,
-      ExpTimestamp = maps:get(exp, Token),
-      {_, CurrentTimestampSeconds, _} = os:timestamp(),
-      %% Check if given token is still valid
-      case ExpTimestamp > CurrentTimestampSeconds of
-        true ->
-          io:format("Client(~s) token exp is bigger than the current date, authenticated~n",
-            [ClientId]),
-          {ok, Result};
-        false ->
-          io:format("Client(~s) token exp is smaller than than the current date, access deniyed!~n",
-            [ClientId]),
-          {stop, {error, banned}}
-      end;
+      {ok, Result}; %% Check the suitable `Result` value
     false ->
-      io:format("Error: ~p~n", [Response])
+      io:format("Error: ~p~n", [Response]),
+      {stop, {error, banned}}
   end.
 
-on_client_authorize(ClientInfo = #{clientid := ClientId}, PubSub, Topic, Result, Env) ->
-  io:format("Client(~s) authorize, ClientInfo:~n~p~n, ~p to topic(~s) Result:~p,~nEnv:~p~n",
-    [ClientId, ClientInfo, PubSub, Topic, Result, Env]),
+on_client_authorize(ClientInfo = #{clientid := ClientId, username := Username}, PubSub, Topic, Result, Env) ->
+  io:format("Client(~s) with username(~s) try to authorize on topic(~s)",
+    [ClientId,Username,  Topic]),
+
+
+
+
+
+
+
+
+
+
   {ok, Result}.
 
 
