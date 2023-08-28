@@ -52,7 +52,8 @@
 %% -------
 
 -define(SERVER_NAME, authentication).
--define(CHANN_NAME,  channel1).
+-define(AUTHENTICATION_CHANN_NAME,  channel1).
+-define(AUTHORIZATION_CHANN_NAME,  channel2).
 
 %% ----------------
 %% Custom functions
@@ -62,28 +63,39 @@ start_services() ->
     services => #{'auth_authentication.AuthenticationService' => emqx_grpc_authentication_svr}
   },
   Options = [],
-  {ok, _} = grpc:start_server(?SERVER_NAME, 5076, Services, Options),
-  io:format("Start service ~s on 5076 successfully!~n", [?SERVER_NAME]).
+  {ok, _} = grpc:start_server(?SERVER_NAME, 5005, Services, Options),
+  io:format("Start service ~s on 5005 successfully!~n", [?SERVER_NAME]).
 
 start_client_channel() ->
   ClientOps = #{},
-  SvrAddr = "http://192.168.111.242:5076",
+  AuthenticationSvrAddr = "http://192.168.111.242:5076",
+  AuthorizationSvrAddr = "http://192.168.111.242:5087",
   {ok, _} = grpc_client_sup:create_channel_pool(
-    ?CHANN_NAME,
-    SvrAddr,
+    ?AUTHENTICATION_CHANN_NAME,
+    AuthenticationSvrAddr,
     ClientOps
   ),
   io:format("Start client channel ~s for ~s successfully! :)~n~n"
   "Call the 'auth_authentication_authentication_service_client' module exported functions "
   "to use it. e.g:~n",
-    [?CHANN_NAME, SvrAddr]).
+    [?AUTHENTICATION_CHANN_NAME, AuthenticationSvrAddr]),
+  {ok, _} = grpc_client_sup:create_channel_pool(
+  ?AUTHORIZATION_CHANN_NAME,
+  AuthorizationSvrAddr,
+  ClientOps
+  ),
+  io:format("Start client channel ~s for ~s successfully! :)~n~n"
+  "Call the 'auth_authorization_authorization_service_client' module exported functions "
+  "to use it. e.g:~n",
+    [?AUTHORIZATION_CHANN_NAME, AuthorizationSvrAddr]).
 
 stop_services() ->
   grpc:stop_server(?SERVER_NAME).
 
 stop_client_channel() ->
   io:format("client Channel close! :("),
-  grpc_client_sup:stop_channel_pool(?CHANN_NAME).
+  grpc_client_sup:stop_channel_pool(?AUTHENTICATION_CHANN_NAME),
+  grpc_client_sup:stop_channel_pool(?AUTHORIZATION_CHANN_NAME).
 
 %%--------------------------------------------------------------------
 %% callbacks for supervisor
@@ -159,9 +171,9 @@ on_client_authenticate(ClientInfo = #{clientid := ClientId, username := Username
   %% Fetch third party server access token
   Response = auth_authentication_authentication_service_client:mqtt_authenticate_cache_valid_topics(#{
     access_token => Password,
-    active_session => Username,
-    mqtt_client_id => ClientId},
-    #{channel => channel1
+    active_session => ClientId,
+    mqtt_username => Username},
+    #{channel => ?AUTHENTICATION_CHANN_NAME
     }),
   Success = grpc_checker:is_grpc_call_successful(Response),
   io:format("gRPC call successful: ~p~n", [Success]),
@@ -179,17 +191,26 @@ on_client_authorize(ClientInfo = #{clientid := ClientId, username := Username}, 
   io:format("Client(~s) with username(~s) try to authorize on topic(~s)",
     [ClientId,Username,  Topic]),
 
+  %% Fetch third party server access token
+  Response = auth_authorization_authorization_service_client:mqtt_topic_authorization(#{
+    topic => Topic,
+    active_session => ClientId,
+    mqtt_username => Username},
+    #{channel => ?AUTHORIZATION_CHANN_NAME
+    }),
+  Success = grpc_checker:is_grpc_call_successful(Response),
+  io:format("gRPC call successful: ~p~n", [Success]),
 
 
-
-
-
-
-
-
-
-  {ok, Result}.
-
+  %% Continue if RPC call is successfully
+  case Success of
+    true ->
+      {ok, #{ available := Value }, _} = Response,
+      is_one(Value);
+    false ->
+      io:format("Error: ~p~n", [Response]),
+      {stop, #{result => deny, from => default}}
+  end.
 
 on_client_subscribe(#{clientid := ClientId}, _Properties, TopicFilters, _Env) ->
     io:format("Client(~s) will subscribe: ~p~n", [ClientId, TopicFilters]),
@@ -282,3 +303,9 @@ hook(HookPoint, MFA) ->
 
 unhook(HookPoint, MFA) ->
     emqx_hooks:del(HookPoint, MFA).
+
+
+is_one(<<"1">>) ->
+  {ok, #{result => allow, from => default}};
+is_one(_) ->
+  {stop, #{result => deny, from => default}}.

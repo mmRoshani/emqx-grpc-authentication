@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package auth_authorization;
+
+service AuthorizationService {
+  rpc MqttTopicAuthorization(MqttAuthorization) returns (TopicIsAvailable);
+}
+
+message MqttAuthorization {
+  string topic = 1;
+  string active_session = 2;
+  string mqtt_username = 3;
+}
+
+message TopicIsAvailable { string available = 1; }

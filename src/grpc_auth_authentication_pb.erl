@@ -53,7 +53,7 @@
 -type mqtt_authentication() ::
       #{access_token            => iodata(),        % = 1
         active_session          => iodata(),        % = 2
-        mqtt_client_id          => iodata()         % = 3
+        mqtt_username           => iodata()         % = 3
        }.
 
 -type auth_token() ::
@@ -121,7 +121,7 @@ encode_msg_mqtt_authentication(#{} = M, Bin,
              _ -> B1
          end,
     case M of
-        #{mqtt_client_id := F3} ->
+        #{mqtt_username := F3} ->
             begin
                 TrF3 = id(F3, TrUserData),
                 case is_empty_string(TrF3) of
@@ -419,17 +419,17 @@ dfp_read_field_def_mqtt_authentication(<<18,
 dfp_read_field_def_mqtt_authentication(<<26,
                                          Rest/binary>>,
                                        Z1, Z2, F@_1, F@_2, F@_3, TrUserData) ->
-    d_field_mqtt_authentication_mqtt_client_id(Rest,
-                                               Z1,
-                                               Z2,
-                                               F@_1,
-                                               F@_2,
-                                               F@_3,
-                                               TrUserData);
+    d_field_mqtt_authentication_mqtt_username(Rest,
+                                              Z1,
+                                              Z2,
+                                              F@_1,
+                                              F@_2,
+                                              F@_3,
+                                              TrUserData);
 dfp_read_field_def_mqtt_authentication(<<>>, 0, 0, F@_1,
                                        F@_2, F@_3, _) ->
     #{access_token => F@_1, active_session => F@_2,
-      mqtt_client_id => F@_3};
+      mqtt_username => F@_3};
 dfp_read_field_def_mqtt_authentication(Other, Z1, Z2,
                                        F@_1, F@_2, F@_3, TrUserData) ->
     dg_read_field_def_mqtt_authentication(Other,
@@ -473,13 +473,13 @@ dg_read_field_def_mqtt_authentication(<<0:1, X:7,
                                                        F@_3,
                                                        TrUserData);
         26 ->
-            d_field_mqtt_authentication_mqtt_client_id(Rest,
-                                                       0,
-                                                       0,
-                                                       F@_1,
-                                                       F@_2,
-                                                       F@_3,
-                                                       TrUserData);
+            d_field_mqtt_authentication_mqtt_username(Rest,
+                                                      0,
+                                                      0,
+                                                      F@_1,
+                                                      F@_2,
+                                                      F@_3,
+                                                      TrUserData);
         _ ->
             case Key band 7 of
                 0 ->
@@ -527,7 +527,7 @@ dg_read_field_def_mqtt_authentication(<<0:1, X:7,
 dg_read_field_def_mqtt_authentication(<<>>, 0, 0, F@_1,
                                       F@_2, F@_3, _) ->
     #{access_token => F@_1, active_session => F@_2,
-      mqtt_client_id => F@_3}.
+      mqtt_username => F@_3}.
 
 d_field_mqtt_authentication_access_token(<<1:1, X:7,
                                            Rest/binary>>,
@@ -583,20 +583,20 @@ d_field_mqtt_authentication_active_session(<<0:1, X:7,
                                            F@_3,
                                            TrUserData).
 
-d_field_mqtt_authentication_mqtt_client_id(<<1:1, X:7,
-                                             Rest/binary>>,
-                                           N, Acc, F@_1, F@_2, F@_3, TrUserData)
+d_field_mqtt_authentication_mqtt_username(<<1:1, X:7,
+                                            Rest/binary>>,
+                                          N, Acc, F@_1, F@_2, F@_3, TrUserData)
     when N < 57 ->
-    d_field_mqtt_authentication_mqtt_client_id(Rest,
-                                               N + 7,
-                                               X bsl N + Acc,
-                                               F@_1,
-                                               F@_2,
-                                               F@_3,
-                                               TrUserData);
-d_field_mqtt_authentication_mqtt_client_id(<<0:1, X:7,
-                                             Rest/binary>>,
-                                           N, Acc, F@_1, F@_2, _, TrUserData) ->
+    d_field_mqtt_authentication_mqtt_username(Rest,
+                                              N + 7,
+                                              X bsl N + Acc,
+                                              F@_1,
+                                              F@_2,
+                                              F@_3,
+                                              TrUserData);
+d_field_mqtt_authentication_mqtt_username(<<0:1, X:7,
+                                            Rest/binary>>,
+                                          N, Acc, F@_1, F@_2, _, TrUserData) ->
     {NewFValue, RestF} = begin
                              Len = X bsl N + Acc,
                              <<Bytes:Len/binary, Rest2/binary>> = Rest,
@@ -1659,10 +1659,10 @@ merge_msg_mqtt_authentication(PMsg, NMsg, _) ->
              _ -> S2
          end,
     case {PMsg, NMsg} of
-        {_, #{mqtt_client_id := NFmqtt_client_id}} ->
-            S3#{mqtt_client_id => NFmqtt_client_id};
-        {#{mqtt_client_id := PFmqtt_client_id}, _} ->
-            S3#{mqtt_client_id => PFmqtt_client_id};
+        {_, #{mqtt_username := NFmqtt_username}} ->
+            S3#{mqtt_username => NFmqtt_username};
+        {#{mqtt_username := PFmqtt_username}, _} ->
+            S3#{mqtt_username => PFmqtt_username};
         _ -> S3
     end.
 
@@ -1750,13 +1750,13 @@ v_msg_mqtt_authentication(#{} = M, Path, TrUserData) ->
         _ -> ok
     end,
     case M of
-        #{mqtt_client_id := F3} ->
-            v_type_string(F3, [mqtt_client_id | Path], TrUserData);
+        #{mqtt_username := F3} ->
+            v_type_string(F3, [mqtt_username | Path], TrUserData);
         _ -> ok
     end,
     lists:foreach(fun (access_token) -> ok;
                       (active_session) -> ok;
-                      (mqtt_client_id) -> ok;
+                      (mqtt_username) -> ok;
                       (OtherKey) ->
                           mk_type_error({extraneous_key, OtherKey}, M, Path)
                   end,
@@ -1922,7 +1922,7 @@ get_msg_defs() ->
          type => string, occurrence => optional, opts => []},
        #{name => active_session, fnum => 2, rnum => 3,
          type => string, occurrence => optional, opts => []},
-       #{name => mqtt_client_id, fnum => 3, rnum => 4,
+       #{name => mqtt_username, fnum => 3, rnum => 4,
          type => string, occurrence => optional, opts => []}]},
      {{msg, auth_token},
       [#{name => cid, fnum => 1, rnum => 2, type => string,
@@ -1975,7 +1975,7 @@ find_msg_def(mqtt_authentication) ->
        type => string, occurrence => optional, opts => []},
      #{name => active_session, fnum => 2, rnum => 3,
        type => string, occurrence => optional, opts => []},
-     #{name => mqtt_client_id, fnum => 3, rnum => 4,
+     #{name => mqtt_username, fnum => 3, rnum => 4,
        type => string, occurrence => optional, opts => []}];
 find_msg_def(auth_token) ->
     [#{name => cid, fnum => 1, rnum => 2, type => string,

@@ -9,7 +9,7 @@ service AuthenticationService {
 message MqttAuthentication {
   string access_token = 1;
   string active_session = 2;
-  string mqtt_client_id = 3;
+  string mqtt_username = 3;
 }
 
 
